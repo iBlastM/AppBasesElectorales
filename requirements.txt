@@ -1,0 +1,5 @@
+streamlit
+pandas
+openpyxl
+pytest
+starlette>=0.47
