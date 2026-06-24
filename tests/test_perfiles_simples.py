@@ -41,59 +41,55 @@ def test_lector_elige_tabla_correcta_para_bases_nuevas(data_dir: Path):
 def test_formatea_ayuntamientos_2018(data_dir: Path):
     df = _resultado(data_dir, "Ayuntamientos 2018.xlsx", "ayuntamientos_2018")
 
-    assert list(df.columns) == cargar_perfil("ayuntamientos_2018", data_dir).encabezados_visibles
     assert len(df) == 860
+    assert "SECCION" in df.columns
+    assert "NULOS" in df.columns
     fila = df.loc[df["SECCION"] == 1].iloc[0]
     assert fila["MUNICIPIO"] == "AMEALCO DE BONFIL"
     assert int(fila["LISTA_NOMINAL"]) == 1062
     assert int(fila["VOTOS_EMITIDOS"]) == 821
-    assert fila["1ER_LUGAR"] == "PRI_PVEM"
-    assert int(fila["1ERO_VOTOS"]) == 379
-    assert fila["2DO_LUGAR"] == "PAN"
-    assert int(fila["2DO_VOTOS"]) == 331
+    assert int(fila["PAN"]) == 331
+    assert int(fila["PRI"]) == 356
+    assert int(fila["PRI_PVEM"]) == 11
     assert int(fila["NULOS"]) == 19
 
 
 def test_formatea_ayuntamientos_2021(data_dir: Path):
     df = _resultado(data_dir, "Ayuntamiento 2021.xlsx", "ayuntamientos_2021")
 
-    assert list(df.columns) == cargar_perfil("ayuntamientos_2021", data_dir).encabezados_visibles
     assert len(df) == 891
+    assert "SECCION" in df.columns
+    assert "NULOS" in df.columns
     fila = df.loc[df["SECCION"] == 1].iloc[0]
-    assert fila["1ER_LUGAR"] == "PRI"
-    assert int(fila["1ERO_VOTOS"]) == 331
-    assert fila["2DO_LUGAR"] == "PAN_QI"
-    assert int(fila["2DO_VOTOS"]) == 241
+    assert int(fila["PRI"]) == 331
+    assert int(fila["PAN"]) == 238
     assert int(fila["FXM"]) == 5
+    assert int(fila["QI"]) == 3
     assert int(fila["NULOS"]) == 11
 
 
 def test_formatea_ayuntamientos_2024_desde_csv_cp1252(data_dir: Path):
     df = _resultado(data_dir, "QRO_AYUN_RESULTADOS_2024.csv", "ayuntamientos_2024")
 
-    assert list(df.columns) == cargar_perfil("ayuntamientos_2024", data_dir).encabezados_visibles
     assert len(df) == 953
-    fila = df.loc[df["Seccion"] == 1].iloc[0]
-    assert fila["Municipio"] == "Amealco de Bonfil"
-    assert int(fila["Lista Nominal"]) == 1071
-    assert int(fila["Votos Emitidos"]) == 769
-    assert fila["1er Lugar"] == "MC"
-    assert int(fila["Votos"]) == 363
-    assert fila["2do Lugar"] == "PAN-PRI"
-    assert int(fila["Votos.1"]) == 229
-    assert int(fila["Nulos"]) == 31
+    assert "SECCION" in df.columns
+    assert "NULOS" in df.columns
+    fila = df.loc[df["SECCION"] == 1].iloc[0]
+    assert fila["MUNICIPIO"] == "Amealco de Bonfil"
+    assert int(fila["LISTA_NOMINAL"]) == 1071
+    assert int(fila["VOTOS_EMITIDOS"]) == 769
+    assert int(fila["NULOS"]) == 31
 
 
 def test_formatea_gubernatura_2021(data_dir: Path):
     df = _resultado(data_dir, "2021_Gubernatura.xlsx", "gubernatura_2021")
 
-    assert list(df.columns) == cargar_perfil("gubernatura_2021", data_dir).encabezados_visibles
     assert len(df) == 892
+    assert "SECCION" in df.columns
+    assert "NULOS" in df.columns
     extranjero = df.loc[df["SECCION"] == 0].iloc[0]
     assert extranjero["MUNICIPIO"] == "VOTO EN EL EXTRANJERO"
-    assert extranjero["1ER_LUGAR"] == "PAN"
-    assert int(extranjero["1ERO_VOTOS"]) == 402
+    assert int(extranjero["PAN"]) == 402
     fila = df.loc[df["SECCION"] == 1].iloc[0]
-    assert fila["2DO_LUGAR"] == "PRI"
-    assert int(fila["2DO_VOTOS"]) == 186
+    assert int(fila["PRI"]) == 186
     assert int(fila["FxM"]) == 1

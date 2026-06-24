@@ -84,7 +84,7 @@ class FormateadorSimple:
         columnas_df = columnas_base + partidos_salida + ["CNR", "NULOS"]
         for col in columnas_df:
             if col not in resultado.columns:
-                resultado[col] = ""
+                resultado[col] = 0
         resultado = resultado[columnas_df]
 
         return ResultadoFormateoSimple(df_base=resultado, config=config, advertencias=advertencias)
@@ -97,12 +97,20 @@ class FormateadorSimple:
                 conocidas.add(normalizar_clave(alias))
         for partido in self.perfil.partidos_salida:
             conocidas.add(normalizar_clave(partido))
+        for _, componentes in self.perfil.ranking_grupos:
+            for comp in componentes:
+                conocidas.add(normalizar_clave(comp))
         conocidas.update({
             normalizar_clave(c) for c in [
                 "ID_ESTADO", "NOMBRE_ESTADO", "ID_DISTRITO_LOCAL", "CABECERA_DISTRITAL_LOCAL",
-                "ID_MUNICIPIO", "CASILLAS", "NUM_VOTOS_VALIDOS", "TRIBUNAL", "OBSERVACIONES",
+                "ID_MUNICIPIO", "ID_MUNICIPIO_LOCAL", "MUNICIPIO_LOCAL", "CASILLAS",
+                "NUM_VOTOS_VALIDOS", "NUMERO_VOTOS_VALIDOS", "TRIBUNAL", "OBSERVACIONES",
                 "SECCION", "LISTA_NOMINAL", "LISTA_NOMINAL_CASILLA", "TOTAL_VOTOS",
                 "VOTOS_EMITIDOS", "NUM_VOTOS_NULOS", "VOTOS_NULOS", "NUM_VOTOS_CAN_NREG",
+                "ID_CASILLA", "EXT_CONTIGUA", "ID_TIPO_CANDIDATURA",
+                "ESTATUS_ACTA", "ESTATUS_PAQUETE", "ID_INCIDENTE",
+                "NUM_BOLETAS_RECIBIDAS", "NUM_BOLETAS_SOBRANTES", "NUM_ESCRITOS",
+                "BOLETAS_OTRA_ELECCION",
             ]
         })
         extras: list[str] = []
@@ -143,9 +151,8 @@ class FormateadorSimple:
         if columna is None:
             return pd.Series([0] * len(df), index=df.index, dtype="float64")
         serie = df[columna]
-        if serie.dtype == object:
+        if not pd.api.types.is_numeric_dtype(serie):
             serie = serie.astype(str).str.strip().str.replace(",", "", regex=False)
-            serie = serie.replace({"": "0", " ": "0", "nan": "0", "None": "0"})
         return pd.to_numeric(serie, errors="coerce").fillna(0)
 
     @staticmethod
@@ -179,5 +186,8 @@ class FormateadorSimple:
 
     @staticmethod
     def _normalizar_numero(valor: object) -> int | float:
-        numero = float(valor)
+        try:
+            numero = float(valor)
+        except (TypeError, ValueError):
+            return 0
         return int(numero) if numero.is_integer() else numero
