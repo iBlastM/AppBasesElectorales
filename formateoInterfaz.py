@@ -8,7 +8,7 @@ import streamlit as st
 from src.cache_helpers import cargar_excel_desde_bytes, dataframe_a_csv
 from src.catalogos import construir_catalogo_dfdl
 from src.configuracion import cargar_configuracion_anual
-from src.excel_writer import escribir_xlsx
+from src.excel_writer import construir_dataframe_completo, escribir_xlsx
 from src.formateador import FormateadorElectoral
 from src.formateador_simple import FormateadorSimple
 from src.lector_origen import leer_tabla_principal
@@ -87,7 +87,8 @@ else:
         if st.button("Generar formato electoral", type="primary"):
             with st.spinner("Generando Excel formateado..."):
                 xlsx = generar_xlsx()
-                csv = dataframe_a_csv(resultado.df_base)
+                df_completo = construir_dataframe_completo(resultado.df_base, resultado.config)
+                csv = dataframe_a_csv(df_completo)
             st.session_state["_xlsx_formato"] = xlsx
             st.session_state["_csv_base"] = csv
             st.session_state["_nombre_salida"] = f"base_electoral_formateada_{perfil.id}.xlsx"

@@ -97,9 +97,6 @@ class FormateadorSimple:
                 conocidas.add(normalizar_clave(alias))
         for partido in self.perfil.partidos_salida:
             conocidas.add(normalizar_clave(partido))
-        for _, componentes in self.perfil.ranking_grupos:
-            for comp in componentes:
-                conocidas.add(normalizar_clave(comp))
         conocidas.update({
             normalizar_clave(c) for c in [
                 "ID_ESTADO", "NOMBRE_ESTADO", "ID_DISTRITO_LOCAL", "CABECERA_DISTRITAL_LOCAL",

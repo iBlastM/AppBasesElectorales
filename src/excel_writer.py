@@ -11,8 +11,83 @@ from openpyxl.utils import get_column_letter
 from .configuracion import ConfiguracionAnual
 
 
+def construir_dataframe_completo(df_base: pd.DataFrame, config: ConfiguracionAnual) -> pd.DataFrame:
+    partidos = config.partidos
+    filas: list[dict[str, Any]] = []
+
+    for _, row in df_base.iterrows():
+        votos_partidos = [(p, int(_numero(row.get(p, 0)) or 0)) for p in partidos]
+        votos_emitidos = int(_numero(row.get("VOTOS_EMITIDOS", 0)) or 0)
+        lista_nominal = int(_numero(row.get("LISTA_NOMINAL", 0)) or 0)
+        nulos = int(_numero(row.get("NULOS", 0)) or 0)
+
+        ranking = sorted(votos_partidos, key=lambda x: -x[1])
+        top3 = ranking[:3]
+
+        participacion = votos_emitidos / lista_nominal if lista_nominal else 0
+        top1_votos = top3[0][1] if len(top3) > 0 else 0
+        top2_votos = top3[1][1] if len(top3) > 1 else 0
+        top3_votos = top3[2][1] if len(top3) > 2 else 0
+        dif_votos_2do = top1_votos - top2_votos
+        dif_votos_3ro = top2_votos - top3_votos
+        tot_votos = sum(v for _, v in votos_partidos) + nulos
+
+        valores = {
+            "PARTICIPACION": participacion,
+            "ABSTENCION": 1 - participacion if lista_nominal else 0,
+            "1ER_LUGAR": top3[0][0] if len(top3) > 0 else "",
+            "1ERO_VOTOS": top1_votos,
+            "2DO_LUGAR": top3[1][0] if len(top3) > 1 else "",
+            "2DO_VOTOS": top2_votos,
+            "3ER_LUGAR": top3[2][0] if len(top3) > 2 else "",
+            "3RO_VOTOS": top3_votos,
+            "1PP_MV": top3[0][0] if len(top3) > 0 else "",
+            "2PP_MV": top3[1][0] if len(top3) > 1 else "",
+            "3PP_MV": top3[2][0] if len(top3) > 2 else "",
+            "DIF_VOTOS_2DO": dif_votos_2do,
+            "DIF_VOTOS_3RO": dif_votos_3ro,
+            "DIF_PCN_2DO": dif_votos_2do / votos_emitidos if votos_emitidos else 0,
+            "DIF_PCN_3RO": dif_votos_3ro / votos_emitidos if votos_emitidos else 0,
+            "DIF_2DO": dif_votos_2do,
+            "DIF_3RO": dif_votos_3ro,
+            "TOT_VOTOS": tot_votos,
+            "VALIDACION": tot_votos / votos_emitidos if votos_emitidos else 0,
+        }
+
+        fila: dict[str, Any] = {}
+        prev_value: int | float = 0
+        votos_ordinal = 0
+        for header in config.encabezados_visibles:
+            if header == "PCN":
+                fila[f"PCN_{len([k for k in fila if k.startswith('PCN')])}"] = (
+                    prev_value / votos_emitidos if votos_emitidos else 0
+                )
+            elif header == "VOTOS":
+                val = top3[votos_ordinal][1] if votos_ordinal < len(top3) else 0
+                votos_ordinal += 1
+                fila[f"VOTOS_{len([k for k in fila if k.startswith('VOTOS_') and k[6:].isdigit()])}"] = val
+                prev_value = val
+            elif header in valores:
+                fila[header] = valores[header]
+                prev_value = valores[header] if isinstance(valores[header], (int, float)) else 0
+            elif header in df_base.columns:
+                val = _numero(row.get(header, ""))
+                fila[header] = val
+                prev_value = val if isinstance(val, (int, float)) else 0
+            else:
+                fila[header] = ""
+                prev_value = 0
+        filas.append(fila)
+
+    resultado = pd.DataFrame(filas)
+    resultado.columns = config.encabezados_visibles
+    return resultado
+
+
 def escribir_xlsx(df_base: pd.DataFrame, config: ConfiguracionAnual) -> bytes:
     wb = Workbook()
+    wb.calculation.calcMode = "auto"
+    wb.calculation.fullCalcOnLoad = True
     ws = wb.active
     ws.title = "Formato"
     calc = wb.create_sheet("_calculos")
