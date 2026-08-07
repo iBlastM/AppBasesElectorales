@@ -4,14 +4,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
-from openpyxl import load_workbook
 
 from .configuracion import ConfiguracionAnual
-
-
-LISTA_NOMINAL_ALIASES = {"LISTA_NOMINAL_CASILLA", "LISTA_NOMINAL"}
-TOTAL_VOTOS_ALIASES = {"TOTAL_VOTOS", "VOTOS_EMITIDOS"}
-NULOS_ALIASES = {"NUM_VOTOS_NULOS", "VOTOS_NULOS", "NULOS"}
+from .lector_perfiles import _detectar_tabla_excel, leer_tabla_perfil
 
 
 @dataclass(frozen=True)
@@ -19,47 +14,31 @@ class MetadataOrigen:
     fila_encabezado: int
     hoja: str
     filas_leidas: int
+    encoding: str | None = None
 
 
-def _normalizar_columna(valor: object) -> str:
-    return str(valor).strip().upper() if valor is not None else ""
+def detectar_fila_encabezado(ruta_origen: Path, config: ConfiguracionAnual | None = None) -> int:
+    """Devuelve la fila de encabezado, sin asumir que la tabla está en la primera hoja.
+
+    ``config`` se conserva por compatibilidad con el flujo histórico; la detección se
+    fundamenta en columnas electorales comunes y no queda atada al formato de QRO.
+    """
+    if ruta_origen.suffix.lower() in {".xlsx", ".xlsm"}:
+        fila, _ = _detectar_tabla_excel(ruta_origen, None)
+        return fila
+    _, meta = leer_tabla_perfil(ruta_origen, None)
+    return meta.fila_encabezado
 
 
-def detectar_fila_encabezado(ruta_excel: Path, config: ConfiguracionAnual) -> int:
-    wb = load_workbook(ruta_excel, read_only=True, data_only=True)
-    ws = wb.worksheets[0]
-    partidos = {p.upper() for p in config.partidos}
-
-    for numero_fila, row in enumerate(ws.iter_rows(values_only=True), start=1):
-        valores = {_normalizar_columna(v) for v in row if v is not None}
-        coincidencias_partidos = len(valores & partidos)
-        if (
-            "SECCION" in valores
-            and valores & LISTA_NOMINAL_ALIASES
-            and valores & TOTAL_VOTOS_ALIASES
-            and valores & NULOS_ALIASES
-            and coincidencias_partidos >= 2
-        ):
-            return numero_fila
-
-    raise ValueError("No se detectó la tabla principal en la primera hoja.")
-
-
-def leer_tabla_principal(ruta_excel: Path, config: ConfiguracionAnual) -> tuple[pd.DataFrame, MetadataOrigen]:
-    fila_encabezado = detectar_fila_encabezado(ruta_excel, config)
-    wb = load_workbook(ruta_excel, read_only=True, data_only=True)
-    hoja = wb.sheetnames[0]
-
-    df = pd.read_excel(ruta_excel, sheet_name=0, header=fila_encabezado - 1)
-    df = df.dropna(axis=1, how="all")
-    df.columns = [str(col).strip() for col in df.columns]
-
-    if "SECCION" not in df.columns:
-        raise ValueError("La tabla detectada no contiene SECCION.")
-
-    df["SECCION"] = pd.to_numeric(df["SECCION"], errors="coerce")
-    df = df.dropna(subset=["SECCION"]).copy()
-    df["SECCION"] = df["SECCION"].astype(int)
-    df = df.dropna(how="all")
-
-    return df, MetadataOrigen(fila_encabezado=fila_encabezado, hoja=hoja, filas_leidas=len(df))
+def leer_tabla_principal(
+    ruta_origen: Path,
+    config: ConfiguracionAnual | None = None,
+) -> tuple[pd.DataFrame, MetadataOrigen]:
+    """Lee Excel o CSV y selecciona la tabla con encabezados electorales más compatibles."""
+    df, meta = leer_tabla_perfil(ruta_origen, None)
+    return df, MetadataOrigen(
+        fila_encabezado=meta.fila_encabezado,
+        hoja=meta.hoja,
+        filas_leidas=meta.filas_leidas,
+        encoding=meta.encoding,
+    )

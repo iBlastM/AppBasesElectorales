@@ -1,9 +1,9 @@
 REQUISITOS_ARCHIVO = [
-    "El archivo debe estar en formato .xlsx o .csv, según el tipo de base origen.",
-    "El nombre del archivo debe incluir el año de la elección: 2018, 2021 o 2024.",
+    "El archivo debe estar en formato .xlsx o .csv.",
+    "El nombre del archivo debe incluir un único año de cuatro dígitos.",
     "La tabla principal puede iniciar en cualquier fila, siempre que conserve encabezados claros.",
-    "Para ayuntamientos y gubernatura, la app detecta la hoja más compatible con el formato esperado.",
-    "Para diputaciones locales, las columnas DF y DL no son necesarias en el origen; la app las asigna con el catálogo del año detectado.",
+    "La app detecta la hoja más compatible y la fila de encabezados a partir de SECCION y campos electorales comunes.",
+    "Las columnas DF y DL son opcionales: se conservan si el origen las incluye y quedan vacías si no están disponibles.",
 ]
 
 
@@ -31,7 +31,7 @@ COLUMNAS_INDISPENSABLES = [
     {
         "campo": "MUNICIPIO",
         "nombres_aceptados": "MUNICIPIO, MUNICIPIO_LOCAL",
-        "contenido": "Nombre del municipio. Se usa para los formatos de ayuntamientos y gubernatura.",
+        "contenido": "Nombre del municipio. Se conserva en la salida cuando está disponible.",
     },
     {
         "campo": "Partidos y coaliciones",

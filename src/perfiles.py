@@ -22,7 +22,7 @@ class PerfilFormato:
 
     @property
     def es_simple(self) -> bool:
-        return self.tipo in {"ayuntamientos", "gubernatura"}
+        return self.tipo in {"ayuntamientos", "gubernatura", "generico"}
 
 
 FORMATOS_SIMPLES = {
@@ -40,13 +40,61 @@ TOP_COLUMNS = {
 }
 
 
+ALIASES_GENERICOS = {
+    "cve_entidad": ["CVE_ENTIDAD", "CLAVE_ENTIDAD", "ID_ESTADO", "ID_ENTIDAD", "ENTIDAD_ID"],
+    "entidad": ["ENTIDAD", "ESTADO", "NOMBRE_ESTADO", "NOMBRE_ENTIDAD"],
+    "cve_municipio": ["CU_MUNICIPIO", "CVE_MUNICIPIO", "CLAVE_MUNICIPIO", "ID_MUNICIPIO", "ID_MUNICIPIO_LOCAL"],
+    "municipio": ["MUNICIPIO", "MUNICIPIO_LOCAL", "NOMBRE_MUNICIPIO", "NOM_MUNICIPIO"],
+    "df": ["DF", "DISTRITO_FEDERAL", "CVE_DISTRITO_FEDERAL", "ID_DISTRITO_FEDERAL"],
+    "dl": ["DL", "DISTRITO_LOCAL", "CVE_DISTRITO_LOCAL", "ID_DISTRITO_LOCAL"],
+    "seccion": ["SECCION", "SECCIÓN", "SECC", "SECCION_ELECTORAL", "NUM_SECCION"],
+    "lista": ["LISTA_NOMINAL", "LISTA_NOMINAL_CASILLA", "LISTADO_NOMINAL", "LN"],
+    "votos": ["TOTAL_VOTOS", "VOTOS_EMITIDOS", "TOTAL_VOTACION", "VOTACION_TOTAL", "VOTOS_TOTALES", "TOTAL", "TOT"],
+    "nulos": ["NUM_VOTOS_NULOS", "VOTOS_NULOS", "NULOS", "VOTO_NULO", "NULO"],
+    "CNR": ["CNR", "NUM_VOTOS_CAN_NREG", "NO_REGISTRADOS", "CAND_NO_REGISTRADOS", "CANDIDATURAS_NO_REGISTRADAS", "NOREG", "NO_REG"],
+}
+
+
+def crear_perfil_generico(nombre_archivo: str) -> PerfilFormato:
+    """Construye un perfil independiente de estado, año o tipo de elección.
+
+    El año sólo se conserva como metadato y acepta cualquier año de cuatro dígitos.
+    Las columnas de partidos se detectan directamente en la tabla origen.
+    """
+    encontrados = sorted(set(re.findall(r"(?<!\d)((?:19|20)\d{2})(?!\d)", nombre_archivo)))
+    if len(encontrados) != 1:
+        raise ValueError("El nombre del archivo debe incluir exactamente un año de cuatro dígitos.")
+    anio = encontrados[0]
+    nombre = _normalizar(nombre_archivo)
+    if "GUB" in nombre:
+        tipo = "gubernatura"
+    elif "AYU" in nombre or "MUNICIP" in nombre:
+        tipo = "ayuntamientos"
+    elif "DIP" in nombre:
+        tipo = "diputaciones"
+    else:
+        tipo = "generico"
+    return PerfilFormato(
+        id=f"base_{tipo}_{anio}",
+        tipo="generico",
+        anio=anio,
+        ruta_formato=Path(),
+        encabezados_visibles=[],
+        partidos_salida=[],
+        aliases_columnas={clave: list(valores) for clave, valores in ALIASES_GENERICOS.items()},
+        ranking_grupos=[],
+        ranking_referencia={},
+        municipios_referencia={},
+    )
+
+
 def detectar_perfil(nombre_archivo: str, data_dir: Path) -> PerfilFormato:
     anio = _detectar_anio(nombre_archivo)
     nombre = _normalizar(nombre_archivo)
 
     if "GUBERNATURA" in nombre or re.search(r"\bGUB\b", nombre):
         perfil_id = f"gubernatura_{anio}"
-    elif "AYUN" in nombre:
+    elif "AYU" in nombre or "MUNICIP" in nombre:
         perfil_id = f"ayuntamientos_{anio}"
     else:
         perfil_id = f"diputaciones_{anio}"

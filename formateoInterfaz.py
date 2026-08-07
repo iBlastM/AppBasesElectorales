@@ -6,14 +6,10 @@ from tempfile import NamedTemporaryFile
 import streamlit as st
 
 from src.cache_helpers import cargar_excel_desde_bytes, dataframe_a_csv
-from src.catalogos import construir_catalogo_dfdl
-from src.configuracion import cargar_configuracion_anual
 from src.excel_writer import construir_dataframe_completo, escribir_xlsx
-from src.formateador import FormateadorElectoral
 from src.formateador_simple import FormateadorSimple
-from src.lector_origen import leer_tabla_principal
 from src.lector_perfiles import leer_tabla_perfil
-from src.perfiles import detectar_perfil
+from src.perfiles import crear_perfil_generico
 from src.ui_textos import COLUMNAS_INDISPENSABLES, COLUMNAS_RECOMENDADAS, REQUISITOS_ARCHIVO
 
 
@@ -25,7 +21,7 @@ st.set_page_config(page_title="Formateador Electoral", layout="wide")
 st.title("Formateador de Bases Electorales")
 st.write("Sube un archivo de cómputos electorales para generar la sábana formateada.")
 
-st.info("El nombre del archivo debe incluir el año soportado: 2018, 2021 o 2024.")
+st.info("El nombre del archivo debe incluir un único año de cuatro dígitos. La tabla se detecta automáticamente en Excel o CSV.")
 
 with st.expander("Columnas indispensables del archivo origen", expanded=True):
     st.markdown("**Requisitos del archivo**")
@@ -44,7 +40,7 @@ if archivo is None:
     st.info("A la espera de un archivo.")
 else:
     try:
-        perfil = detectar_perfil(archivo.name, DATA_DIR)
+        perfil = crear_perfil_generico(archivo.name)
         anio = perfil.anio
         contenido = archivo.getvalue()
 
@@ -55,18 +51,9 @@ else:
             tmp.write(contenido)
             ruta_tmp = Path(tmp.name)
 
-        if perfil.es_simple:
-            tabla, meta = leer_tabla_perfil(ruta_tmp, perfil)
-            resultado = FormateadorSimple(perfil).formatear(tabla)
-            generar_xlsx = lambda: escribir_xlsx(resultado.df_base, resultado.config)
-        else:
-            if not archivo.name.lower().endswith(".xlsx"):
-                raise ValueError("Los formatos de diputaciones locales se procesan desde archivos .xlsx.")
-            config = cargar_configuracion_anual(anio, DATA_DIR)
-            catalogo = construir_catalogo_dfdl(config)
-            tabla, meta = leer_tabla_principal(ruta_tmp, config)
-            resultado = FormateadorElectoral(config, catalogo).formatear(tabla)
-            generar_xlsx = lambda: escribir_xlsx(resultado.df_base, config)
+        tabla, meta = leer_tabla_perfil(ruta_tmp, perfil)
+        resultado = FormateadorSimple(perfil).formatear(tabla)
+        generar_xlsx = lambda: escribir_xlsx(resultado.df_base, resultado.config)
 
         col_anio, col_perfil, col_fila, col_origen, col_salida = st.columns(5)
         col_anio.metric("Año detectado", anio)
@@ -119,11 +106,10 @@ with st.expander("Ayuda", expanded=False):
     st.markdown(
         """
         - El archivo debe ser `.xlsx` o `.csv`.
-        - El nombre debe incluir `2018`, `2021` o `2024`.
-        - Para ayuntamientos y gubernatura se detecta la hoja más compatible con el formato esperado.
-        - Para diputaciones locales se conserva el flujo original de Excel con fórmulas.
-        - La tabla principal puede iniciar en cualquier fila; la app detecta los encabezados.
+        - El nombre debe incluir un único año de cuatro dígitos; no se limita a años o entidades preconfigurados.
+        - La app busca automáticamente la hoja y la fila de encabezados con una columna de sección.
+        - Se admiten CSV con preámbulos y codificaciones UTF-8, Windows-1252 o Latin-1.
+        - Las columnas geográficas disponibles (entidad y municipio) se conservan en la salida.
         - La salida principal es Excel.
         """
     )
-    st.caption("v2024.06.24")
