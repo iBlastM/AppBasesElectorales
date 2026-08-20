@@ -18,20 +18,32 @@ class ResultadoFormateoSimple:
 class FormateadorSimple:
     def __init__(self, perfil: PerfilFormato):
         self.perfil = perfil
+        self.aliases_columnas = {clave: list(aliases) for clave, aliases in perfil.aliases_columnas.items()}
 
-    def formatear(self, tabla: pd.DataFrame) -> ResultadoFormateoSimple:
+    def formatear(
+        self,
+        tabla: pd.DataFrame,
+        mapeo_esencial: dict[str, str] | None = None,
+    ) -> ResultadoFormateoSimple:
+        """Formatea una base electoral con aliases y mapeos manuales opcionales.
+
+        ``mapeo_esencial`` asocia la clave lógica (por ejemplo ``"votos"``) con
+        una columna de origen. Cuando se proporciona, tiene prioridad sobre los
+        aliases del perfil, igual que el mapeo de columnas de BaseProgramasSociales.
+        """
         if not self.perfil.es_simple:
             raise ValueError("FormateadorSimple solo acepta perfiles simples o genéricos.")
 
+        self.aliases_columnas = self._aliases_con_mapeo(mapeo_esencial)
         advertencias: list[str] = []
         df = tabla.copy()
         df.columns = [str(col).strip() for col in df.columns]
 
-        trabajo = pd.DataFrame({"SECCION": self._serie_numerica(df, self.perfil.aliases_columnas["seccion"])})
+        trabajo = pd.DataFrame({"SECCION": self._serie_numerica(df, self.aliases_columnas["seccion"])})
         trabajo["__CVE_ENTIDAD"] = self._serie_texto(df, self.perfil.aliases_columnas.get("cve_entidad", []))
         trabajo["__ENTIDAD"] = self._serie_texto(df, self.perfil.aliases_columnas.get("entidad", []))
         trabajo["__CVE_MUNICIPIO"] = self._serie_texto(df, self.perfil.aliases_columnas.get("cve_municipio", []))
-        trabajo["__MUNICIPIO"] = self._serie_texto(df, self.perfil.aliases_columnas["municipio"])
+        trabajo["__MUNICIPIO"] = self._serie_texto(df, self.aliases_columnas["municipio"])
         trabajo["__DF"] = self._serie_texto(df, self.perfil.aliases_columnas.get("df", []))
         trabajo["__DL"] = self._serie_texto(df, self.perfil.aliases_columnas.get("dl", []))
         trabajo["__LISTA"] = self._serie_numerica_logica(df, "lista", advertencias)
@@ -102,15 +114,38 @@ class FormateadorSimple:
 
         return ResultadoFormateoSimple(df_base=resultado, config=config, advertencias=advertencias)
 
+    def _aliases_con_mapeo(self, mapeo_esencial: dict[str, str] | None) -> dict[str, list[str]]:
+        aliases = {clave: list(valores) for clave, valores in self.perfil.aliases_columnas.items()}
+        for campo, columna_origen in (mapeo_esencial or {}).items():
+            if campo not in aliases or not columna_origen:
+                continue
+            # La columna elegida por la persona usuaria es el primer alias para
+            # que tenga prioridad, sin perder compatibilidad con los nombres
+            # históricos del perfil.
+            aliases[campo] = [columna_origen] + [
+                alias for alias in aliases[campo]
+                if normalizar_clave(alias) != normalizar_clave(columna_origen)
+            ]
+        return aliases
+
     def _detectar_columnas_extra(self, df: pd.DataFrame) -> list[str]:
-        conocidas = set()
-        for aliases in self.perfil.aliases_columnas.values():
-            for alias in aliases:
-                conocidas.add(normalizar_clave(alias))
-        for partido in self.perfil.partidos_salida:
-            conocidas.add(normalizar_clave(partido))
-        conocidas.update({
-            normalizar_clave(c) for c in [
+        """Devuelve únicamente columnas de votos de partidos/candidaturas.
+
+        Las exportaciones de Guanajuato intercalan votos con porcentajes
+        ``P_<PARTIDO>``/``PCN`` y métricas de captura. Por seguridad una columna
+        numérica desconocida no se considera un partido: debe tener un nombre
+        partidista conocido, representar una candidatura independiente o contar
+        con su porcentaje homólogo ``P_<COLUMNA>``.
+        """
+        conocidas = {
+            normalizar_clave(alias)
+            for aliases in self.aliases_columnas.values()
+            for alias in aliases
+        }
+        conocidas.update(normalizar_clave(partido) for partido in self.perfil.partidos_salida)
+        conocidas.update(
+            normalizar_clave(c)
+            for c in [
                 "ID_ESTADO", "NOMBRE_ESTADO", "ID_ENTIDAD", "CLAVE_ENTIDAD", "ENTIDAD", "ESTADO",
                 "ID_DISTRITO_LOCAL", "DISTRITO_LOCAL", "DISTRITO_FEDERAL", "CABECERA_DISTRITAL_LOCAL",
                 "ID_MUNICIPIO", "ID_MUNICIPIO_LOCAL", "CVE_MUNICIPIO", "CLAVE_MUNICIPIO", "MUNICIPIO_LOCAL",
@@ -118,22 +153,56 @@ class FormateadorSimple:
                 "NUMERO_VOTOS_VALIDOS", "TRIBUNAL", "OBSERVACIONES", "SECCION", "SECCIÓN", "SECC",
                 "LISTA_NOMINAL", "LISTA_NOMINAL_CASILLA", "LISTADO_NOMINAL", "TOTAL_VOTOS", "VOTOS_EMITIDOS",
                 "TOTAL_VOTACION", "VOTACION_TOTAL", "NUM_VOTOS_NULOS", "VOTOS_NULOS", "NUM_VOTOS_CAN_NREG",
-                "ID_CASILLA", "EXT_CONTIGUA", "ID_TIPO_CANDIDATURA", "ESTATUS_ACTA", "ESTATUS_PAQUETE",
-                "ID_INCIDENTE", "NUM_BOLETAS_RECIBIDAS", "NUM_BOLETAS_SOBRANTES", "NUM_ESCRITOS",
-                "BOLETAS_OTRA_ELECCION",
+                "ID_CASILLA", "IDCASILLA", "ID_UBICACION", "EXT_CONTIGUA", "ID_TIPO_CANDIDATURA",
+                "ESTATUS_ACTA", "ESTATUS_PAQUETE", "ID_INCIDENTE", "NUM_BOLETAS_RECIBIDAS",
+                "NUM_BOLETAS_SOBRANTES", "NUM_ESCRITOS", "BOLETAS_OTRA_ELECCION",
             ]
-        })
+        )
+        claves_origen = {normalizar_clave(col) for col in df.columns}
+
         extras: list[str] = []
         for col in df.columns:
             clave = normalizar_clave(col)
-            if clave and clave not in conocidas:
-                serie = pd.to_numeric(df[col].astype(str).str.replace(",", "", regex=False).str.strip(), errors="coerce")
-                if serie.notna().any() and serie.fillna(0).sum() > 0:
-                    extras.append(col)
+            if not clave or clave in conocidas or self._es_columna_no_partidista(clave):
+                continue
+            serie = pd.to_numeric(
+                df[col].astype(str).str.replace(",", "", regex=False).str.strip(),
+                errors="coerce",
+            )
+            if serie.notna().any() and (serie.dropna() >= 0).all() and self._es_nombre_partidista(clave, claves_origen):
+                extras.append(col)
         return extras
 
+    @staticmethod
+    def _es_columna_no_partidista(clave: str) -> bool:
+        # P_<PARTIDO>, PORCENTAJE_* y PCN son porcentajes, nunca votos.
+        if clave == "PCN" or clave.startswith(("P_", "PORC", "PCT", "PERCENT")):
+            return True
+        # Campos operativos de cómputo, identificación y control de actas.
+        prefijos = (
+            "ID", "CVE", "CLAVE", "CASILLA", "UBICACION", "CONTABIL", "COTEJ", "RECONT",
+            "PARTICIP", "ESTATUS", "ACTA", "PAQUETE", "BOLETA", "ESCRITO", "INCIDENTE",
+            "DISTRITO", "MUNICIPIO", "ENTIDAD", "ESTADO", "LISTA", "TOTAL", "VOTO", "NULO",
+            "NOREG", "NO_REG", "CNR", "NUM_", "OBSERV", "TRIBUNAL",
+        )
+        return clave.startswith(prefijos)
+
+    @staticmethod
+    def _es_nombre_partidista(clave: str, claves_origen: set[str]) -> bool:
+        if f"P_{clave}" in claves_origen:
+            return True
+        if clave.startswith(("CAND_IND", "CANDIDATO_IND", "CANDIDATURA_IND", "CI_")):
+            return True
+
+        siglas_partidistas = {
+            "PAN", "PRI", "PRD", "PVEM", "PT", "MC", "MORENA", "PES", "NA", "PNA",
+            "NUEVA", "ALIANZA", "RSP", "FXM", "FM", "FUERZA", "MEXICO", "ES", "PES",
+            "QI", "QS", "CQ", "PH", "PUP", "PRS", "SI", "CI", "VERDE", "HUMANISTA",
+        }
+        return any(token in siglas_partidistas for token in clave.split("_"))
+
     def _serie_numerica_logica(self, df: pd.DataFrame, nombre: str, advertencias: list[str]) -> pd.Series:
-        aliases = self.perfil.aliases_columnas.get(nombre, [nombre])
+        aliases = self.aliases_columnas.get(nombre, [nombre])
         columnas = self._resolver_columnas(df, aliases)
         if not columnas:
             if nombre in self.perfil.partidos_salida:

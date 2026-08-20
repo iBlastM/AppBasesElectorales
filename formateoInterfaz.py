@@ -16,6 +16,43 @@ from src.ui_textos import COLUMNAS_INDISPENSABLES, COLUMNAS_RECOMENDADAS, REQUIS
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 
+CAMPOS_ESENCIALES = {
+    "seccion": "Sección electoral",
+    "lista": "Lista nominal",
+    "votos": "Total de votos emitidos",
+    "nulos": "Votos nulos",
+    "CNR": "Candidaturas no registradas",
+    "cve_entidad": "Clave de entidad",
+    "entidad": "Entidad",
+    "cve_municipio": "Clave de municipio",
+    "municipio": "Municipio",
+    "df": "Distrito federal",
+    "dl": "Distrito local",
+}
+
+
+def capturar_mapeo_esencial(tabla):
+    """Permite elegir nombres no estándar sin incluirlos como votos de partido."""
+    mapeo = {}
+    columnas = [str(col) for col in tabla.columns]
+    with st.expander("Mapeo de columnas esenciales (opcional)"):
+        st.caption(
+            "Selecciona sólo los campos cuyo encabezado difiera de la detección automática. "
+            "Las columnas de partidos se detectan automáticamente; PCN y porcentajes P_<partido> se excluyen."
+        )
+        columnas_ui = st.columns(2)
+        for indice, (campo, etiqueta) in enumerate(CAMPOS_ESENCIALES.items()):
+            with columnas_ui[indice % 2]:
+                seleccion = st.selectbox(
+                    etiqueta,
+                    options=[""] + columnas,
+                    format_func=lambda valor: "Detectar automáticamente" if not valor else valor,
+                    key=f"mapeo_esencial_{campo}",
+                )
+                if seleccion:
+                    mapeo[campo] = seleccion
+    return mapeo
+
 
 st.set_page_config(page_title="Formateador Electoral", layout="wide")
 st.title("Formateador de Bases Electorales")
@@ -52,7 +89,8 @@ else:
             ruta_tmp = Path(tmp.name)
 
         tabla, meta = leer_tabla_perfil(ruta_tmp, perfil)
-        resultado = FormateadorSimple(perfil).formatear(tabla)
+        mapeo_esencial = capturar_mapeo_esencial(tabla)
+        resultado = FormateadorSimple(perfil).formatear(tabla, mapeo_esencial=mapeo_esencial)
         generar_xlsx = lambda: escribir_xlsx(resultado.df_base, resultado.config)
 
         col_anio, col_perfil, col_fila, col_origen, col_salida = st.columns(5)

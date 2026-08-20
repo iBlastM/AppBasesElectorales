@@ -230,8 +230,8 @@ def _formula_para_columna(
         votos = ",".join(f"{get_column_letter(i)}{row_idx}" for i in party_indices + [nulos_col])
         return f"=SUM({votos})"
     if header == "VALIDACION":
-        pcns = ",".join(f"{get_column_letter(i)}{row_idx}" for i in pcn_indices + [nulos_col + 1])
-        return f"=SUM({pcns})"
+        total = f"{get_column_letter(posiciones['TOT_VOTOS'])}{row_idx}"
+        return f"=IFERROR({total}/{emitted},0)"
     if header == "PCN":
         vote_col = get_column_letter(col_idx - 1)
         return f"=IFERROR({vote_col}{row_idx}/{emitted},0)"
