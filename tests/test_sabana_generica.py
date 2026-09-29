@@ -19,7 +19,7 @@ PREFIJO_SABANA_2024 = [
 
 
 def test_generico_genera_sabana_2024_y_clasifica_metricas_indispensables():
-    perfil = crear_perfil_generico("GTO_AYU_2018.xlsx")
+    perfil = crear_perfil_generico("GTO_DIP_2018.xlsx")
     tabla = pd.DataFrame(
         {
             "ID_ESTADO": [11, 11],
@@ -87,7 +87,7 @@ def test_generico_excluye_porcentajes_pcn_y_campos_operativos_de_guanajuato():
 
     assert resultado.config.partidos == ["PAN", "PRI", "CNR"]
     assert list(resultado.df_base.columns) == [
-        "#", "CVE_ENTIDAD", "ENTIDAD", "CU_MUNICIPIO", "MUNICIPIO", "DF", "DL", "SECCION",
+        "#", "CVE_ENTIDAD", "ENTIDAD", "DF", "DL", "SECCION",
         "LISTA_NOMINAL", "VOTOS_EMITIDOS", "PAN", "PRI", "CNR", "NULOS",
     ]
     assert fila["PAN"] == 420

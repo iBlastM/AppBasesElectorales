@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pandas as pd
 
@@ -13,6 +13,9 @@ class ResultadoFormateoSimple:
     df_base: pd.DataFrame
     config: ConfiguracionAnual
     advertencias: list[str]
+    # Columnas de origen usadas para cada campo clave y como partidos (perfil genérico).
+    mapeo: dict[str, str | None] = field(default_factory=dict)
+    partidos: list[str] = field(default_factory=list)
 
 
 class FormateadorSimple:
@@ -24,6 +27,8 @@ class FormateadorSimple:
         self,
         tabla: pd.DataFrame,
         mapeo_esencial: dict[str, str] | None = None,
+        partidos: list[str] | None = None,
+        incluir_municipio: bool | None = None,
     ) -> ResultadoFormateoSimple:
         """Formatea una base electoral con aliases y mapeos manuales opcionales.
 
@@ -33,6 +38,16 @@ class FormateadorSimple:
         """
         if not self.perfil.es_simple:
             raise ValueError("FormateadorSimple solo acepta perfiles simples o genéricos.")
+        if self.perfil.tipo == "generico":
+            from .sabana import formatear_sabana
+
+            return formatear_sabana(
+                tabla,
+                self.perfil,
+                mapeo={campo: col for campo, col in (mapeo_esencial or {}).items() if col},
+                partidos=partidos,
+                incluir_municipio=incluir_municipio,
+            )
 
         self.aliases_columnas = self._aliases_con_mapeo(mapeo_esencial)
         advertencias: list[str] = []
