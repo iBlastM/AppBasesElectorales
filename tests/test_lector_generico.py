@@ -42,7 +42,8 @@ def test_lector_generico_encuentra_hoja_secundaria_y_preserva_geografia(tmp_path
     fila = resultado.iloc[0]
     assert fila["CVE_ENTIDAD"] == 11
     assert fila["ENTIDAD"] == "GUANAJUATO"
-    assert fila["CU_MUNICIPIO"] == 1
+    # El formato estándar no lleva clave municipal; sí el nombre en ayuntamientos ("AY").
+    assert "CU_MUNICIPIO" not in resultado.columns
     assert fila["MUNICIPIO"] == "ABASOLO"
     assert fila["DF"] == 5
     assert fila["DL"] == 9

@@ -78,13 +78,20 @@ def cargar_configuracion_anual(anio: str, data_dir: Path) -> ConfiguracionAnual:
     )
 
 
-def config_desde_perfil_simple(perfil: "PerfilFormato", partidos_override: list[str] | None = None) -> ConfiguracionAnual:
+def config_desde_perfil_simple(
+    perfil: "PerfilFormato",
+    partidos_override: list[str] | None = None,
+    incluir_municipio: bool | None = None,
+) -> ConfiguracionAnual:
     geo_base = ["#", "CVE_ENTIDAD", "ENTIDAD", "CU_MUNICIPIO", "MUNICIPIO", "DF", "DL", "SECCION",
                 "LISTA_NOMINAL", "VOTOS_EMITIDOS"]
-    # La sábana genérica toma la plantilla 2024: no incluye datos municipales
-    # y deja sólo los campos indispensables antes de las métricas calculadas.
+    # La sábana genérica sigue la plantilla estándar (SE_DIP_LOCALES_QRO_2024):
+    # sin clave municipal y, salvo en ayuntamientos, sin nombre de municipio.
     if perfil.tipo == "generico":
-        geo_base = ["#", "CVE_ENTIDAD", "ENTIDAD", "DF", "DL", "SECCION", "LISTA_NOMINAL", "VOTOS_EMITIDOS"]
+        if incluir_municipio is None:
+            incluir_municipio = perfil.eleccion == "ayuntamientos"
+        municipio = ["MUNICIPIO"] if incluir_municipio else []
+        geo_base = ["#", "CVE_ENTIDAD", "ENTIDAD", *municipio, "DF", "DL", "SECCION", "LISTA_NOMINAL", "VOTOS_EMITIDOS"]
     participacion_cols = ["PARTICIPACION", "ABSTENCION"]
     top_cols = [
         "1ER_LUGAR", "1ERO_VOTOS", "PCN", "DIF_VOTOS_2DO", "DIF_PCN_2DO",
