@@ -1,8 +1,10 @@
 REQUISITOS_ARCHIVO = [
-    "El archivo debe estar en formato .xlsx o .csv.",
-    "El nombre del archivo debe incluir un único año de cuatro dígitos.",
-    "La tabla principal puede iniciar en cualquier fila, siempre que conserve encabezados claros.",
-    "La app detecta la hoja más compatible y la fila de encabezados a partir de SECCION y campos electorales comunes.",
+    "El archivo debe estar en formato .xlsx, .xlsm o .csv, tal como lo publica el instituto electoral de cualquier estado.",
+    "El año, el tipo de elección y la entidad se infieren del nombre del archivo; si no se detectan, se capturan en pantalla.",
+    "La tabla principal puede iniciar en cualquier fila: la app detecta la hoja más compatible y la fila de encabezados "
+    "(también pueden indicarse manualmente).",
+    "Puede venir por casilla o por sección; la salida siempre tiene una fila por sección.",
+    "Si alguna columna clave no se detecta, se elige manualmente entre las columnas del archivo.",
     "Las columnas DF y DL son opcionales: se conservan si el origen las incluye y quedan vacías si no están disponibles.",
 ]
 
@@ -10,52 +12,50 @@ REQUISITOS_ARCHIVO = [
 COLUMNAS_INDISPENSABLES = [
     {
         "campo": "SECCION",
-        "nombres_aceptados": "SECCION, Seccion, SECCIÓN",
-        "contenido": "Número de sección electoral. Debe ser numérico; si viene como 0001 se convierte a 1.",
+        "nombres_aceptados": "SECCION, Sección, SECC, ID_SECCION",
+        "contenido": "Clave de sección electoral. Las filas sin sección numérica (totales, notas) se omiten.",
     },
     {
         "campo": "LISTA_NOMINAL_CASILLA / LISTA_NOMINAL",
-        "nombres_aceptados": "LISTA_NOMINAL_CASILLA, LISTA_NOMINAL, Lista Nominal",
-        "contenido": "Cantidad de personas en lista nominal. Debe ser numérica; si hay varias casillas, se suma por sección.",
+        "nombres_aceptados": "LISTA_NOMINAL, LISTA_NOMINAL_CASILLA, LISTADO_NOMINAL, LN",
+        "contenido": "Electores en lista nominal. Se suma por sección; se usa para PARTICIPACION y ABSTENCION.",
     },
     {
         "campo": "TOTAL_VOTOS / VOTOS_EMITIDOS",
-        "nombres_aceptados": "TOTAL_VOTOS, VOTOS_EMITIDOS, Votos Emitidos",
-        "contenido": "Total de votos emitidos. Debe ser numérico; se usa para calcular participación y porcentajes.",
+        "nombres_aceptados": "TOTAL_VOTOS, VOTOS_EMITIDOS, TOTAL_VOTACION, TOTAL",
+        "contenido": "Total de votos emitidos. Base de todos los porcentajes (PCN) y de VALIDACION.",
     },
     {
         "campo": "NUM_VOTOS_NULOS / VOTOS_NULOS / NULOS",
-        "nombres_aceptados": "NUM_VOTOS_NULOS, VOTOS_NULOS, NULOS, Nulos",
-        "contenido": "Votos nulos. Debe ser numérico y se suma por sección.",
-    },
-    {
-        "campo": "MUNICIPIO",
-        "nombres_aceptados": "MUNICIPIO, MUNICIPIO_LOCAL",
-        "contenido": "Nombre del municipio. Se conserva en la salida cuando está disponible.",
+        "nombres_aceptados": "NUM_VOTOS_NULOS, VOTOS_NULOS, NULOS, NULO",
+        "contenido": "Votos nulos. Se suman por sección y forman parte de TOT_VOTOS.",
     },
     {
         "campo": "Partidos y coaliciones",
-        "nombres_aceptados": "Columnas del formato del año, por ejemplo PAN, PRI, MORENA, MC, PT, PAN_QI o PAN-PRI.",
-        "contenido": "Votos por partido, coalición o candidatura. Deben ser numéricos; las columnas ausentes se llenan con 0.",
+        "nombres_aceptados": "Una columna por partido, coalición o candidatura independiente (PAN, PAN_PRI, CAND_IND_1, CI_1...).",
+        "contenido": "Votos enteros. Se detectan automáticamente; los porcentajes (P_PAN, PCN) se excluyen. "
+        "La selección se puede ajustar.",
+    },
+    {
+        "campo": "MUNICIPIO",
+        "nombres_aceptados": "MUNICIPIO, MUNICIPIO_LOCAL, NOMBRE_MUNICIPIO, NOM_MUN",
+        "contenido": "Nombre del municipio. Obligatorio en la salida de ayuntamientos; si el archivo lo nombra de otra "
+        "forma (p. ej. UBICACION) se selecciona manualmente.",
     },
 ]
 
 
 COLUMNAS_RECOMENDADAS = [
     {
-        "campo": "ID_ESTADO",
-        "contenido": "Clave de entidad. Si existe, se usa para llenar CVE_ENTIDAD en formatos que la requieren.",
+        "campo": "Candidaturas no registradas (CNR)",
+        "contenido": "NUM_VOTOS_CAN_NREG, NO_REGISTRADOS, NOREG... Si no existe se llena con 0.",
     },
     {
-        "campo": "NOMBRE_ESTADO",
-        "contenido": "Nombre de la entidad. Si existe, se usa para llenar ENTIDAD en formatos que la requieren.",
+        "campo": "CVE_ENTIDAD / ENTIDAD",
+        "contenido": "ID_ESTADO / NOMBRE_ESTADO. Si no existen se usa la entidad seleccionada en pantalla.",
     },
     {
-        "campo": "ID_MUNICIPIO_LOCAL / ID_MUNICIPIO",
-        "contenido": "Clave de municipio. Si el formato anual la requiere, se usa para CU_MUNICIPIO.",
-    },
-    {
-        "campo": "MUNICIPIO_LOCAL / MUNICIPIO",
-        "contenido": "Nombre de municipio. Si el formato anual lo requiere, se usa para MUNICIPIO.",
+        "campo": "DF / DL",
+        "contenido": "Distrito federal y local (ID_DISTRITO_LOCAL, DISTRITO_FEDERAL...). Si no existen quedan vacíos.",
     },
 ]
