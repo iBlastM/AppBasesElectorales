@@ -19,6 +19,10 @@ class PerfilFormato:
     ranking_grupos: list[tuple[str, list[str]]]
     ranking_referencia: dict[int, list[tuple[str, int | float]]]
     municipios_referencia: dict[int, str]
+    # Tipo de elección detectado (ayuntamientos, gubernatura, diputaciones o generico)
+    # y entidad (clave INEGI, nombre). Sólo se usan en el perfil genérico.
+    eleccion: str = "generico"
+    entidad: tuple[int, str] | None = None
 
     @property
     def es_simple(self) -> bool:
@@ -41,41 +45,69 @@ TOP_COLUMNS = {
 
 
 ALIASES_GENERICOS = {
-    "cve_entidad": ["CVE_ENTIDAD", "CLAVE_ENTIDAD", "ID_ESTADO", "ID_ENTIDAD", "ENTIDAD_ID"],
-    "entidad": ["ENTIDAD", "ESTADO", "NOMBRE_ESTADO", "NOMBRE_ENTIDAD"],
-    "cve_municipio": ["CU_MUNICIPIO", "CVE_MUNICIPIO", "CLAVE_MUNICIPIO", "ID_MUNICIPIO", "ID_MUNICIPIO_LOCAL"],
-    "municipio": ["MUNICIPIO", "MUNICIPIO_LOCAL", "NOMBRE_MUNICIPIO", "NOM_MUNICIPIO"],
-    "df": ["DF", "DISTRITO_FEDERAL", "CVE_DISTRITO_FEDERAL", "ID_DISTRITO_FEDERAL"],
-    "dl": ["DL", "DISTRITO_LOCAL", "CVE_DISTRITO_LOCAL", "ID_DISTRITO_LOCAL"],
-    "seccion": ["SECCION", "SECCIÓN", "SECC", "SECCION_ELECTORAL", "NUM_SECCION"],
-    "lista": ["LISTA_NOMINAL", "LISTA_NOMINAL_CASILLA", "LISTADO_NOMINAL", "LN"],
-    "votos": ["TOTAL_VOTOS", "VOTOS_EMITIDOS", "TOTAL_VOTACION", "VOTACION_TOTAL", "VOTOS_TOTALES", "TOTAL", "TOT"],
-    "nulos": ["NUM_VOTOS_NULOS", "VOTOS_NULOS", "NULOS", "VOTO_NULO", "NULO"],
-    "CNR": ["CNR", "NUM_VOTOS_CAN_NREG", "NO_REGISTRADOS", "CAND_NO_REGISTRADOS", "CANDIDATURAS_NO_REGISTRADAS", "NOREG", "NO_REG"],
+    "cve_entidad": ["CVE_ENTIDAD", "CLAVE_ENTIDAD", "ID_ESTADO", "ID_ENTIDAD", "ENTIDAD_ID", "ID_ENT", "CVE_ENT", "CVE_EDO"],
+    "entidad": ["ENTIDAD", "ESTADO", "NOMBRE_ESTADO", "NOMBRE_ENTIDAD", "NOM_ENT", "NOM_ENTIDAD", "ENTIDAD_FEDERATIVA"],
+    "cve_municipio": ["CU_MUNICIPIO", "CVE_MUNICIPIO", "CLAVE_MUNICIPIO", "ID_MUNICIPIO", "ID_MUNICIPIO_LOCAL", "CVE_MUN"],
+    "municipio": ["MUNICIPIO", "MUNICIPIO_LOCAL", "NOMBRE_MUNICIPIO", "NOM_MUNICIPIO", "NOM_MUN", "MUNICIPIOS_NOMBRE"],
+    "df": ["DF", "DISTRITO_FEDERAL", "CVE_DISTRITO_FEDERAL", "ID_DISTRITO_FEDERAL", "DTTO_FED", "DISTRITO_FED"],
+    "dl": ["DL", "DISTRITO_LOCAL", "CVE_DISTRITO_LOCAL", "ID_DISTRITO_LOCAL", "DTTO_LOC", "DISTRITO_LOC", "DISTRITO"],
+    "seccion": ["SECCION", "SECCIÓN", "SECC", "SECCION_ELECTORAL", "NUM_SECCION", "ID_SECCION"],
+    "lista": ["LISTA_NOMINAL", "LISTA_NOMINAL_CASILLA", "LISTADO_NOMINAL", "LN", "LISTA_NOMINAL_ACTA", "LN_CASILLA"],
+    "votos": [
+        "TOTAL_VOTOS", "VOTOS_EMITIDOS", "TOTAL_VOTACION", "VOTACION_TOTAL", "VOTOS_TOTALES",
+        "TOTAL_VOTOS_CALCULADOS", "TOTAL_VOTOS_ASENTADO", "VOTACION_EMITIDA", "TOTAL", "TOT",
+    ],
+    "nulos": ["NUM_VOTOS_NULOS", "VOTOS_NULOS", "NULOS", "VOTO_NULO", "NULO", "VOTOS_NULO"],
+    "CNR": [
+        "CNR", "NUM_VOTOS_CAN_NREG", "NO_REGISTRADOS", "NO_REGISTRADAS", "CAND_NO_REGISTRADOS",
+        "CANDIDATURAS_NO_REGISTRADAS", "CANDIDATOS_NO_REGISTRADOS", "CANDIDATAS_NO_REGISTRADAS",
+        "VOTOS_NO_REGISTRADOS", "VOTOS_CANDIDATOS_NO_REGISTRADOS", "NOREG", "NO_REG", "NREG",
+    ],
 }
 
 
-def crear_perfil_generico(nombre_archivo: str) -> PerfilFormato:
+TIPOS_ELECCION = ["ayuntamientos", "gubernatura", "diputaciones", "generico"]
+
+
+def detectar_anio_generico(nombre_archivo: str) -> str:
+    """Devuelve el único año de cuatro dígitos del nombre o cadena vacía."""
+    encontrados = sorted(set(re.findall(r"(?<!\d)((?:19|20)\d{2})(?!\d)", nombre_archivo)))
+    return encontrados[0] if len(encontrados) == 1 else ""
+
+
+def detectar_tipo_eleccion(nombre_archivo: str) -> str:
+    nombre = normalizar_clave(nombre_archivo)
+    tokens = set(nombre.split("_"))
+    if "GUB" in nombre or "GOB" in nombre:
+        return "gubernatura"
+    if "DIP" in nombre:
+        return "diputaciones"
+    if "AYU" in nombre or "MUNICIP" in nombre or "PRESIDENCIA" in nombre or tokens & {"AY", "AYTO", "AYTOS"}:
+        return "ayuntamientos"
+    return "generico"
+
+
+def crear_perfil_generico(
+    nombre_archivo: str,
+    anio: str | None = None,
+    eleccion: str | None = None,
+    entidad: tuple[int, str] | None = None,
+) -> PerfilFormato:
     """Construye un perfil independiente de estado, año o tipo de elección.
 
-    El año sólo se conserva como metadato y acepta cualquier año de cuatro dígitos.
-    Las columnas de partidos se detectan directamente en la tabla origen.
+    Año, tipo de elección y entidad se infieren del nombre del archivo, pero
+    pueden indicarse explícitamente (por ejemplo, desde la interfaz). Las
+    columnas de partidos se detectan directamente en la tabla origen.
     """
-    encontrados = sorted(set(re.findall(r"(?<!\d)((?:19|20)\d{2})(?!\d)", nombre_archivo)))
-    if len(encontrados) != 1:
-        raise ValueError("El nombre del archivo debe incluir exactamente un año de cuatro dígitos.")
-    anio = encontrados[0]
-    nombre = _normalizar(nombre_archivo)
-    if "GUB" in nombre:
-        tipo = "gubernatura"
-    elif "AYU" in nombre or "MUNICIP" in nombre:
-        tipo = "ayuntamientos"
-    elif "DIP" in nombre:
-        tipo = "diputaciones"
-    else:
-        tipo = "generico"
+    from .entidades import detectar_entidad
+
+    anio = anio if anio is not None else detectar_anio_generico(nombre_archivo)
+    eleccion = eleccion or detectar_tipo_eleccion(nombre_archivo)
+    if eleccion not in TIPOS_ELECCION:
+        raise ValueError(f"Tipo de elección no soportado: {eleccion}")
+    entidad = entidad if entidad is not None else detectar_entidad(nombre_archivo)
     return PerfilFormato(
-        id=f"base_{tipo}_{anio}",
+        id=f"base_{eleccion}_{anio or 'sin_anio'}",
         tipo="generico",
         anio=anio,
         ruta_formato=Path(),
@@ -85,6 +117,8 @@ def crear_perfil_generico(nombre_archivo: str) -> PerfilFormato:
         ranking_grupos=[],
         ranking_referencia={},
         municipios_referencia={},
+        eleccion=eleccion,
+        entidad=entidad,
     )
 
 
